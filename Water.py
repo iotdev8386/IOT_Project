@@ -1,3 +1,4 @@
+import json
 import sys
 import random
 from PyQt5.QtWidgets import (
@@ -5,6 +6,18 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QFont
+import config_device
+import paho.mqtt.client as mqtt
+
+config = config_device.config["Water"]
+
+MQTT_CLIENT_ID = config["clientId"]
+MQTT_BROKER    = "app.coreiot.io"
+MQTT_USER      = config["userName"]
+MQTT_PASSWORD  = config["password"]
+MQTT_TOPIC     = "v1/devices/me/telemetry"
+RPC_TOPIC      = "v1/devices/me/rpc/respones/+"
+
 
 def mock_water_data():
     return {
@@ -27,7 +40,7 @@ class WaterMeterUI(QWidget):
 
         self.data_fields = {
             "voltage": {"label": "🔋 Voltage", "unit": "V"},
-            "water": {"label": "💧 Water Flow", "unit": "m³"},
+            "water": {"label": "💧 Water Flow", "unit": "gal"},
         }
 
         self.labels = {}
@@ -59,15 +72,29 @@ class WaterMeterUI(QWidget):
 
         self.layout.addLayout(self.grid)
         self.setLayout(self.layout)
+        self.init_mqtt()
 
         # Realtime update
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_data)
-        self.timer.start(5000)
+        self.timer.start(60000)
         self.update_data()
+
+    def init_mqtt(self):
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,client_id = MQTT_CLIENT_ID)
+        self.client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
+
+        try:
+            self.client.connect(MQTT_BROKER, 1883, 60)
+            self.client.loop_start()
+        except Exception as e:
+            self.status_label.setText(f"MQTT connect error: {e}")   
 
     def update_data(self):
         data = mock_water_data()
+        payload = json.dumps(data)
+        self.client.publish(MQTT_TOPIC, payload, qos=1)
+        # print(data)
         for key in self.data_fields:
             val = f"{data[key]} {self.data_fields[key]['unit']}"
             self.labels[key].setText(val)

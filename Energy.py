@@ -6,14 +6,25 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
+import config_device
+import paho.mqtt.client as mqtt
 
-def fake_data():
+config = config_device.config["Energy"]
+
+MQTT_CLIENT_ID = config["clientId"]
+MQTT_BROKER    = "app.coreiot.io"
+MQTT_USER      = config["userName"]
+MQTT_PASSWORD  = config["password"]
+MQTT_TOPIC     = "v1/devices/me/telemetry"
+RPC_TOPIC      = "v1/devices/me/rpc/respones/+"
+
+def mock_data():
     return {
-        "amperage": round(random.uniform(10, 20), 1),
-        "energy": round(random.uniform(500, 800), 1),
-        "frequency": round(random.uniform(49, 61), 1),
+        "amperage": round(random.uniform(14, 17), 1),
+        "energy": round(random.uniform(200, 300), 1),
+        "frequency": round(random.uniform(49, 55), 1),
         "power": round(random.uniform(1000, 3000), 1),
-        "voltage": round(random.uniform(210, 250), 1),
+        "voltage": round(random.uniform(210, 230), 1),
     }
 
 class PowerMonitor(QWidget):
@@ -70,11 +81,26 @@ class PowerMonitor(QWidget):
         # Update data every 5 seconds
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_data)
-        self.timer.start(5000)
+        self.timer.start(60000)
+        self.init_mqtt()
         self.update_data()
+    
+    def init_mqtt(self):
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,client_id = MQTT_CLIENT_ID)
+        self.client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
+
+        try:
+            self.client.connect(MQTT_BROKER, 1883, 60)
+            self.client.loop_start()
+        except Exception as e:
+            self.status_label.setText(f"MQTT connect error: {e}")   
 
     def update_data(self):
-        data = fake_data()
+        data = mock_data()
+        payload = json.dumps(data)
+
+        self.client.publish(MQTT_TOPIC, payload=payload)
+
         for key in self.fields:
             value = data[key]
             self.labels[key].setText(f"{value} {self.units[key]}")
