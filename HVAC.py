@@ -8,25 +8,19 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import QTimer, Qt
 import paho.mqtt.client as mqtt
 import config_device
+from QSwitchControl import SwitchControl
+
 config = config_device.config["HVAC"]
 
 MQTT_CLIENT_ID = config["clientId"]
 print("MQTT_CLINENT",MQTT_CLIENT_ID)
 MQTT_BROKER    = "app.coreiot.io"
 MQTT_USER      = config["userName"]
-MQTT_PASSWORD  = config["password"]
+MQTT_PASSWORD  = config["password"] 
 MQTT_TOPIC     = "v1/devices/me/telemetry"
 RPC_TOPIC      = "v1/devices/me/rpc/respones/+"
 # --- MQTT Setup ---
 PORT = 1883
-ACCESS_TOKEN = "z"  # 👉 Replace with real token
-
-# # client = mqtt.Client()
-# client = mqtt.Client(client_id=MQTT_CLIENT_ID)
-# client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
-# client.connect(MQTT_BROKER, PORT, 60)
-# client.loop_start()
-
 # --- PyQt HVAC Simulator ---
 class HVACSimulator(QWidget):
     def __init__(self):
@@ -41,23 +35,18 @@ class HVACSimulator(QWidget):
         self.layout = QVBoxLayout()
 
         # Toggle Switch for Enable/Disable
-        self.toggle_switch = QCheckBox("HVAC Enabled")
-        self.toggle_switch.setChecked(True)
+        self.toggle_label = QLabel("HVAC Control")
+        self.toggle_switch = SwitchControl(bg_color="#ff0000", active_color="#00ff00",checked=self.enabled)
+        # self.toggle_switch.setCheckState()
+        
         self.toggle_switch.stateChanged.connect(self.toggle_hvac)
-        self.toggle_switch.setStyleSheet("""
-            QCheckBox::indicator {
-                width: 40px;
-                height: 40px;
-                margin-right: 20px;
-            }
-            QCheckBox::indicator:unchecked {
-                image: url(none); background-color: #ccc; border-radius: 40px;
-            }
-            QCheckBox::indicator:checked {
-                image: url(none); background-color: #4CAF50; border-radius: 40px;
-            }
-        """)
-        self.layout.addWidget(self.toggle_switch)
+        # Create a horizontal layout for label and switch
+        switch_layout = QHBoxLayout()
+        switch_layout.addWidget(self.toggle_switch)
+        switch_layout.setSpacing(30)
+        
+        switch_layout.addWidget(self.toggle_label)
+        self.layout.addLayout(switch_layout)
 
         # Target Temp Slider
         self.temp_label = QLabel(f"Target Temp: {self.target_temp} °C")
@@ -89,10 +78,12 @@ class HVACSimulator(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self.send_data)
         self.timer.start(5000)
+
+        self.toggle_hvac(self.enabled)
         self.init_mqtt()
 
     def init_mqtt(self):
-        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1,client_id = MQTT_CLIENT_ID)
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,client_id = MQTT_CLIENT_ID)
         self.client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
@@ -115,7 +106,7 @@ class HVACSimulator(QWidget):
         self.enabled = bool(state)
         self.temp_slider.setEnabled(self.enabled)
         self.flow_slider.setEnabled(self.enabled)
-        self.toggle_switch.setText("HVAC Enabled" if self.enabled else "HVAC Disabled")
+        self.toggle_label.setText("HVAC Enabled" if self.enabled else "HVAC Disabled")
 
     def update_target_temp(self, value):
         self.target_temp = value

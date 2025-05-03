@@ -1,2 +1,3 @@
 paho-mqtt
 PyQt5
+QSwitchControl
