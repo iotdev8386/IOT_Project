@@ -1,14 +1,16 @@
 import sys
 import json
-import random
+
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel,
-    QHBoxLayout, QPushButton, QSlider, QCheckBox
+    QHBoxLayout, QSlider
 )
 from PyQt5.QtCore import QTimer, Qt
+
 import paho.mqtt.client as mqtt
+
 import config_device
-from QSwitchControl import SwitchControl
+from thirdparty.QSwitchControl import SwitchControl
 
 config = config_device.config["TestDV2"]
 
@@ -18,13 +20,12 @@ MQTT_USER      = config["userName"]
 MQTT_PASSWORD  = config["password"] 
 MQTT_TOPIC     = "v1/devices/me/telemetry"
 RPC_TOPIC      = "v1/devices/me/rpc/request/+"
-# --- MQTT Setup ---
 PORT = 1883
-# --- PyQt HVAC Simulator ---
+
 class HVACSimulator(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("🌬️ HVAC System Simulator")
+        self.setWindowTitle("HVAC System Simulator")
         self.setGeometry(100, 100, 400, 300)
 
         self.enabled = True
@@ -33,10 +34,10 @@ class HVACSimulator(QWidget):
 
         self.layout = QVBoxLayout()
 
-        # Toggle Switch for Enable/Disable
         self.toggle_label = QLabel("HVAC Control")
-        self.toggle_switch = SwitchControl(bg_color="#ff0000", active_color="#00ff00",checked=self.enabled)
-        # self.toggle_switch.setCheckState()
+        self.toggle_switch = SwitchControl(bg_color="#ff0000", 
+                                           active_color="#00ff00",
+                                           checked=self.enabled)
         
         self.toggle_switch.stateChanged.connect(self.toggle_hvac)
         # Create a horizontal layout for label and switch
@@ -67,10 +68,6 @@ class HVACSimulator(QWidget):
         self.layout.addWidget(self.flow_label)
         self.layout.addWidget(self.flow_slider)
 
-        # Status Label
-        self.status_label = QLabel("Waiting to send...")
-        self.layout.addWidget(self.status_label)
-
         self.setLayout(self.layout)
 
         # Timer to auto-send every 5s
@@ -91,15 +88,15 @@ class HVACSimulator(QWidget):
             self.client.connect(MQTT_BROKER, 1883, 60)
             self.client.loop_start()
         except Exception as e:
-            print(f"❌ MQTT connect error: {e}")
+            print(f"MQTT connect error: {e}")
     
     def on_connect(self, client, userdata, flags, rc, properties=None):
         print("ON CONNECT")
         if rc == 0:
             self.client.subscribe(RPC_TOPIC)
-            print("✅ Connected to MQTT broker")
+            print("Connected to MQTT broker")
         else:
-            print(f"❌ Connect failed: {rc}")
+            print(f"Connect failed: {rc}")
 
 
     def toggle_hvac(self, state):
@@ -107,6 +104,7 @@ class HVACSimulator(QWidget):
         self.temp_slider.setEnabled(self.enabled)
         self.flow_slider.setEnabled(self.enabled)
         self.toggle_label.setText("HVAC Enabled" if self.enabled else "HVAC Disabled")
+        self.toggle_switch.setEnable(self.enabled)
 
     def update_target_temp(self, value):
         self.target_temp = value
@@ -123,8 +121,8 @@ class HVACSimulator(QWidget):
             params = payload.get("params")
 
             print("RECEIVE",method, params)
-            if method == "setHVAC":
-                self.set_hvac(params.get("enabled", True))
+            if method == "setEnabled":
+                self.set_enabled(params)
             elif method == "setTemperature":
                 self.set_temperature(params)
             elif method == "getTemperature":
@@ -134,27 +132,20 @@ class HVACSimulator(QWidget):
         except Exception as e:
             print(f"❌ RPC Error: {e}")
 
-    def set_hvac(self, enabled):
-        self.toggle_switch.setChecked(enabled)
-        print(f"🔄 RPC: HVAC {'enabled' if enabled else 'disabled'}")
+    def set_enabled(self, enabled):
+        print("RPC set enabled", enabled)
+        self.toggle_hvac(enabled)
 
     def set_temperature(self, temp):
-        print("Set Temp from RPC")
         temp = int(temp)
-        if isinstance(temp, int):
-            self.temp_slider.setValue(temp)
-            print(f"🌡️ RPC: Set Temp to {temp}°C")
+        self.temp_slider.setValue(temp)
+        print(f"RPC: Set Temp to {temp}°C")
 
     def get_temperature(self,msg):
         request_id = msg.topic.split("/")[-1]
-        request = json.loads(msg.payload.decode())
-        print("--",msg.topic.split("/"))
-        print(request_id)
-        method = request.get('method')
-        # Gửi phản hồi RPC
+        # print("--",msg.topic.split("/"))
         self.client.publish(f"v1/devices/me/rpc/response/{request_id}", str(self.target_temp))
 
-    
     def send_data(self):
         payload = json.dumps({
             "enabled": self.enabled,
@@ -162,7 +153,7 @@ class HVACSimulator(QWidget):
             "targetTemperature": self.target_temp
         })
         self.client.publish(MQTT_TOPIC, payload, qos=1)
-        print(f"📤 Sent: {payload}")
+        print(f"Sent: {payload}")
 
 # --- Run App ---
 if __name__ == '__main__':
