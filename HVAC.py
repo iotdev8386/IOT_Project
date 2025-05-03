@@ -10,15 +10,14 @@ import paho.mqtt.client as mqtt
 import config_device
 from QSwitchControl import SwitchControl
 
-config = config_device.config["HVAC"]
+config = config_device.config["TestDV2"]
 
 MQTT_CLIENT_ID = config["clientId"]
-print("MQTT_CLINENT",MQTT_CLIENT_ID)
 MQTT_BROKER    = "app.coreiot.io"
 MQTT_USER      = config["userName"]
 MQTT_PASSWORD  = config["password"] 
 MQTT_TOPIC     = "v1/devices/me/telemetry"
-RPC_TOPIC      = "v1/devices/me/rpc/respones/+"
+RPC_TOPIC      = "v1/devices/me/rpc/request/+"
 # --- MQTT Setup ---
 PORT = 1883
 # --- PyQt HVAC Simulator ---
@@ -51,8 +50,8 @@ class HVACSimulator(QWidget):
         # Target Temp Slider
         self.temp_label = QLabel(f"Target Temp: {self.target_temp} °C")
         self.temp_slider = QSlider(Qt.Horizontal)
-        self.temp_slider.setMinimum(18)
-        self.temp_slider.setMaximum(30)
+        self.temp_slider.setMinimum(16)
+        self.temp_slider.setMaximum(40)
         self.temp_slider.setValue(self.target_temp)
         self.temp_slider.valueChanged.connect(self.update_target_temp)
         self.layout.addWidget(self.temp_label)
@@ -92,14 +91,15 @@ class HVACSimulator(QWidget):
             self.client.connect(MQTT_BROKER, 1883, 60)
             self.client.loop_start()
         except Exception as e:
-            self.status_label.setText(f"❌ MQTT connect error: {e}")
+            print(f"❌ MQTT connect error: {e}")
     
     def on_connect(self, client, userdata, flags, rc, properties=None):
+        print("ON CONNECT")
         if rc == 0:
             self.client.subscribe(RPC_TOPIC)
             print("✅ Connected to MQTT broker")
         else:
-            self.status_label.setText(f"❌ Connect failed: {rc}")
+            print(f"❌ Connect failed: {rc}")
 
 
     def toggle_hvac(self, state):
@@ -117,36 +117,42 @@ class HVACSimulator(QWidget):
         self.flow_label.setText(f"Air Flow: {value}%")
 
     def on_message(self, client, userdata, msg):
-        print("RECEIVE")
         try:  
             payload = json.loads(msg.payload.decode())
             method = payload.get("method")
             params = payload.get("params")
 
+            print("RECEIVE",method, params)
             if method == "setHVAC":
                 self.set_hvac(params.get("enabled", True))
             elif method == "setTemperature":
                 self.set_temperature(params)
-            elif method == "setAirFlow":
-                self.set_air_flow(params)
+            elif method == "getTemperature":
+                self.get_temperature(msg)
             else:
-                self.status_label.setText(f"⚠️ Unknown method: {method}")
+                print(f"⚠️ Unknown method: {method}")
         except Exception as e:
-            self.status_label.setText(f"❌ RPC Error: {e}")
+            print(f"❌ RPC Error: {e}")
 
     def set_hvac(self, enabled):
         self.toggle_switch.setChecked(enabled)
-        self.status_label.setText(f"🔄 RPC: HVAC {'enabled' if enabled else 'disabled'}")
+        print(f"🔄 RPC: HVAC {'enabled' if enabled else 'disabled'}")
 
     def set_temperature(self, temp):
+        print("Set Temp from RPC")
+        temp = int(temp)
         if isinstance(temp, int):
             self.temp_slider.setValue(temp)
-            self.status_label.setText(f"🌡️ RPC: Set Temp to {temp}°C")
+            print(f"🌡️ RPC: Set Temp to {temp}°C")
 
-    def set_air_flow(self, flow):
-        if isinstance(flow, int):
-            self.flow_slider.setValue(flow)
-            self.status_label.setText(f"💨 RPC: Set Air Flow to {flow}%")
+    def get_temperature(self,msg):
+        request_id = msg.topic.split("/")[-1]
+        request = json.loads(msg.payload.decode())
+        print("--",msg.topic.split("/"))
+        print(request_id)
+        method = request.get('method')
+        # Gửi phản hồi RPC
+        self.client.publish(f"v1/devices/me/rpc/response/{request_id}", str(self.target_temp))
 
     
     def send_data(self):
@@ -156,7 +162,7 @@ class HVACSimulator(QWidget):
             "targetTemperature": self.target_temp
         })
         self.client.publish(MQTT_TOPIC, payload, qos=1)
-        self.status_label.setText(f"📤 Sent: {payload}")
+        print(f"📤 Sent: {payload}")
 
 # --- Run App ---
 if __name__ == '__main__':
