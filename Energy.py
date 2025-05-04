@@ -21,7 +21,7 @@ RPC_TOPIC      = "v1/devices/me/rpc/respones/+"
 def mock_data():
     return {
         "amperage": round(random.uniform(14, 17), 1),
-        "energy": round(random.uniform(200, 300), 1),
+        "energy": round(random.uniform(0.05, 0.1), 2),
         "frequency": round(random.uniform(49, 55), 1),
         "power": round(random.uniform(1000, 3000), 1),
         "voltage": round(random.uniform(210, 230), 1),
@@ -30,7 +30,7 @@ def mock_data():
 class PowerMonitor(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("🔌 Realtime Power Monitoring")
+        self.setWindowTitle("Energy Meter Monitoring")
         self.setGeometry(200, 200, 500, 300)
         self.setStyleSheet("background-color: #1e1e2f; color: #fff;")
 
@@ -104,6 +104,7 @@ class PowerMonitor(QWidget):
         for key in self.fields:
             value = data[key]
             self.labels[key].setText(f"{value} {self.units[key]}")
+            
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

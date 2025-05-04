@@ -28,7 +28,7 @@ def mock_water_data():
 class WaterMeterUI(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("💧 Water Meter Monitor")
+        self.setWindowTitle("Water Meter Monitor")
         self.setGeometry(200, 200, 400, 250)
         self.setStyleSheet("background-color: #1c2530; color: #ffffff;")
 
@@ -39,8 +39,8 @@ class WaterMeterUI(QWidget):
         self.grid = QGridLayout()
 
         self.data_fields = {
-            "voltage": {"label": "🔋 Voltage", "unit": "V"},
-            "water": {"label": "💧 Water Flow", "unit": "gal"},
+            "voltage": {"label": "Voltage", "unit": "V"},
+            "water": {"label": "Water Flow", "unit": "gal"},
         }
 
         self.labels = {}

@@ -12,7 +12,7 @@ import paho.mqtt.client as mqtt
 import config_device
 from thirdparty.QSwitchControl import SwitchControl
 
-config = config_device.config["TestDV2"]
+config = config_device.config["HVAC"]
 
 MQTT_CLIENT_ID = config["clientId"]
 MQTT_BROKER    = "app.coreiot.io"
@@ -29,7 +29,7 @@ class HVACSimulator(QWidget):
         self.setGeometry(100, 100, 400, 300)
 
         self.enabled = True
-        self.air_flow = 50
+        self.air_flow = 150
         self.target_temp = 24
 
         self.layout = QVBoxLayout()
@@ -59,10 +59,10 @@ class HVACSimulator(QWidget):
         self.layout.addWidget(self.temp_slider)
 
         # Air Flow Slider
-        self.flow_label = QLabel(f"Air Flow: {self.air_flow}%")
+        self.flow_label = QLabel(f"Air Flow: {self.air_flow} cfm")
         self.flow_slider = QSlider(Qt.Horizontal)
         self.flow_slider.setMinimum(0)
-        self.flow_slider.setMaximum(100)
+        self.flow_slider.setMaximum(400)
         self.flow_slider.setValue(self.air_flow)
         self.flow_slider.valueChanged.connect(self.update_air_flow)
         self.layout.addWidget(self.flow_label)
@@ -73,7 +73,7 @@ class HVACSimulator(QWidget):
         # Timer to auto-send every 5s
         self.timer = QTimer()
         self.timer.timeout.connect(self.send_data)
-        self.timer.start(5000)
+        self.timer.start(10000)
 
         self.toggle_hvac(self.enabled)
         self.init_mqtt()
@@ -112,7 +112,7 @@ class HVACSimulator(QWidget):
 
     def update_air_flow(self, value):
         self.air_flow = value
-        self.flow_label.setText(f"Air Flow: {value}%")
+        self.flow_label.setText(f"Air Flow: {value} cfm")
 
     def on_message(self, client, userdata, msg):
         try:  
@@ -120,7 +120,7 @@ class HVACSimulator(QWidget):
             method = payload.get("method")
             params = payload.get("params")
 
-            print("RECEIVE",method, params)
+            # print("RECEIVE",method, params)
             if method == "setEnabled":
                 self.set_enabled(params)
             elif method == "setTemperature":
@@ -128,18 +128,18 @@ class HVACSimulator(QWidget):
             elif method == "getTemperature":
                 self.get_temperature(msg)
             else:
-                print(f"⚠️ Unknown method: {method}")
+                print(f"Unknown method: {method}")
         except Exception as e:
-            print(f"❌ RPC Error: {e}")
+            print(f"RPC Error: {e}")
 
     def set_enabled(self, enabled):
         print("RPC set enabled", enabled)
         self.toggle_hvac(enabled)
 
     def set_temperature(self, temp):
+        print(f"RPC: Set Temp to {temp}°C")
         temp = int(temp)
         self.temp_slider.setValue(temp)
-        print(f"RPC: Set Temp to {temp}°C")
 
     def get_temperature(self,msg):
         request_id = msg.topic.split("/")[-1]
